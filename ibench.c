@@ -39,27 +39,11 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #include "immintrin.h"
 
-libxsmm_smmfunction sixteen3;
+libxsmm_wmmfunction sixteen3;
 int M = 16;
 int N = 16;
 int K = 16;
 int entries = 1;
-
-LIBXSMM_INLINE void zero_buf(float* buf, long size) {
-  int i;
-  for (i = 0; i < size; ++i) {
-    buf[i] = 0.0f;
-  }
-}
-
-LIBXSMM_INLINE void init_buf(float* buf, long size, int initPos, int initOne)
-{
-  int i;
-  zero_buf(buf, size);
-  for (i = 0; i < size; ++i) {
-    buf[i] = (float)((initOne != 0) ? 1.0 : ((initPos != 0) ? drand48() : (0.05 - drand48()/10.0)));
-  }
-}
 
 int main(int argc, char* argv[])
 {
@@ -113,15 +97,12 @@ int main(int argc, char* argv[])
     prefetch = LIBXSMM_PREFETCH_NONE;          
   }
 
-  sixteen3 = libxsmm_smmdispatch(M, N, K, NULL, NULL, NULL, NULL, NULL, NULL, &prefetch );
+  sixteen3 = libxsmm_wmmdispatch(M, N, K, NULL, NULL, NULL, NULL, NULL, NULL, &prefetch );
   const int  iterations = 3000000;
-  float *As  = (float*)libxsmm_aligned_malloc( 64 * M * K * (entries+65) * sizeof(float), 2097152);
-  float *Bs  = (float*)libxsmm_aligned_malloc( 64 * K * N * (entries+65) * sizeof(float), 2097152);
-  float *Cs  = (float*)libxsmm_aligned_malloc( 64 * M * N * (entries+65) * sizeof(float), 2097152);
+  short *As  = (short*)libxsmm_aligned_malloc( 64 * M * K * (entries+65) * sizeof(short), 2097152);
+  short *Bs  = (short*)libxsmm_aligned_malloc( 64 * K * N * (entries+65) * sizeof(short), 2097152);
+  int *Cs  = (int*)libxsmm_aligned_malloc( 64 * M * N * (entries+65) * sizeof(int), 2097152);
 
-  init_buf( As, 64 * M * K * (entries+65), 0 , 0);
-  init_buf( Bs, 64 * K * N * (entries+65), 0 , 0);
-  init_buf( Cs, 64 * M * N * (entries+65), 0 , 0);
   l_start2 = libxsmm_timer_tick();
   double shared_total = 0.0;
   double ext_flops;
@@ -133,30 +114,22 @@ int main(int argc, char* argv[])
     l_total = 0;
     int my_id = omp_get_thread_num();
     const int MK = M*K, KN= K*N, MN = M*N ;
-    float *A = (float*)  &As[my_id * (entries) * MK];
-    float *B = (float*)  &Bs[my_id * (entries) * KN];
-    float *C = (float*)  &Cs[my_id * (entries) * MN];
+    short *A = (short*)  &As[my_id * (entries) * MK];
+    short *B = (short*)  &Bs[my_id * (entries) * KN];
+    int *C = (int*)  &Cs[my_id * (entries) * MN];
 
-#ifdef ERROR_CHECK
-    float *C_check = (float*) libxsmm_aligned_malloc( M*N *sizeof(float) , 2097152  );
-    int mi, mj, mk;
-    for ( mi = 0; mi < M; mi++   ) {
-      for ( mj = 0; mj < N; mj++  ) {
-        C_check[mj*M+mi] = C[ mj*M+mi  ];
-      }
-    }
-#endif
 
     int it, loc = 0;
     int ii,ij;
-    float *a, *b, *c, *a_p, *b_p, *c_p;
+    short *a, *b, *a_p, *b_p;
+    int *c, *c_p;
     a = A;
     b = B;
     c = C;
     a_p = A+MK;
     b_p = B+KN;
     c_p = C+MN;
-    float *BOUND = A + entries * MK;
+    short *BOUND = A + entries * MK;
 
     if (my_id == 0)  {
       l_start = libxsmm_timer_tick();
@@ -196,31 +169,6 @@ int main(int argc, char* argv[])
       printf("GFLOPS KERNEL = %.5g (%.4g%% efficiency) \n", (flops*1e-9)/l_total,(flops*1e-9)/l_total *100.0 / 4915.0 );
       printf("Enforce printing %lld %lld %lld %lld %lld %lld\n", a,b,c,a_p, b_p,c_p);
       shared_total = l_total;
-
-#ifdef ERROR_CHECK
-      for ( mi = 0; mi < M; mi++   ) {
-        for ( mj = 0; mj < N; mj++  ) {
-          for ( mk = 0; mk < K; mk++  ) {
-            C_check[mj*M + mi] += A[ mk*M+mi  ] * B[  mk + mj*K   ];
-          }
-        }
-      }
-
-      int correct = 1;
-
-      for ( mi = 0; mi < M; mi++   ) {
-        for ( mj = 0; mj < N; mj++  ) {
-          if (   fabs( C_check[mj*M+mi] - C[ mj*M+mi  ] ) > 0.0000001  ) {
-            correct = 0;
-          }
-        }
-      }
-
-      if ( correct == 1  ) printf("Correct!!!\n");
-      else  printf("Error!!!\n");
-#endif
-
-
     }
   }
   printf("\n\n\n");
