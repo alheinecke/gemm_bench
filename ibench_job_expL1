@@ -1,0 +1,23 @@
+#!/bin/bash
+#SBATCH --partition=knm
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=272
+#SBATCH --time=06:00:00
+
+source /swtools/intel/compilers_and_libraries_2016.3.210/linux/bin/compilervars.sh intel64
+source /swtools/intel/compilers_and_libraries_2016.3.210/linux/mpi/bin64/mpivars.sh 
+export I_MPI_MIC=1
+export INTEL_LICENSE_FILE=/swtools/intel/licenses/
+
+export OMP_NUM_THREADS=64
+export KMP_AFFINITY=proclist=[2-67],granularity=thread,explicit,norespect
+
+
+for N in 16 17 18 19 20 21 22 23 24 25 26
+do
+srun -n 1 numactl --membind 1 ./ibench 16 $N 16 2 0 >> exp_l1
+srun -n 1 numactl --membind 1 ./ibench 16 $N 32 2 0 >> exp_l1
+srun -n 1 numactl --membind 1 ./ibench 16 $N 48 2 0 >> exp_l1
+srun -n 1 numactl --membind 1 ./ibench 16 $N 64 2 0 >> exp_l1
+done
+

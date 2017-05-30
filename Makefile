@@ -1,16 +1,16 @@
 CC=icc
-CFLAGS=-O3 -I./libxsmm/include -xHost -qopenmp
-LDFLAGS=-L./libxsmm/lib -lxsmm -lxsmmext -lpthread
+CFLAGS=-O3 -I$(LIBXSMM_DIR)/include -xHost -qopenmp
+LDFLAGS=-L$(LIBXSMM_DIR)/lib -lxsmm -lxsmmext -lpthread
 
-default: bench 
-./libxsmm/include/libxsmm.h:
-	rm -rf libxsmm/
-	git clone https://github.com/hfp/libxsmm.git
-	$(MAKE) realclean -C libxsmm
-	$(MAKE) BLAS=0 -C libxsmm
+LIBXSMM_DIR=/nfs_home/dmudiger/my_libxsmm_gh
 
-bench: bench.c ./libxsmm/include/libxsmm.h
+all: bench ibench
+
+bench: bench.c $(LIBXSMM_DIR)/include/libxsmm.h
 	$(CC) $(CFLAGS) bench.c $(LDFLAGS) -o bench
+
+ibench: ibench.c $(LIBXSMM_DIR)/include/libxsmm.h
+	$(CC) $(CFLAGS) ibench.c $(LDFLAGS) -o ibench
 
 clean: 
 	rm -rf bench
